@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:json="http://www.mulesoft.org/schema/mule/json"
+	xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
+    <http:request-config name="HTTP_sampleproject3" host="localhost" port="8085" doc:name="HTTP Request Configuration"/>
+    <http:request-config name="HTTP_sampleproject2" host="localhost" port="8084" doc:name="HTTP Request Configuration"/>
+    <http:request-config name="HTTP_sampleproject1" host="localhost" port="8083" doc:name="HTTP Request Configuration"/>
+    <flow name="consumeMainFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/Consumeproject" allowedMethods="GET" doc:name="HTTP"/>
+        <http:request config-ref="HTTP_sampleproject3" path="/sampleproject3" method="GET" doc:name="HTTP"/>
+        <set-variable variableName="Status" value="#[json:Status]" doc:name="Variable"/>
+        <choice doc:name="Choice">
+            <when expression="#[flowVars.Status== &quot;200&quot;]">
+                <flow-ref name="consumesampleprojectsSub_Flow" doc:name="Flow Reference"/>
+            </when>
+            <otherwise>
+                <logger level="INFO" doc:name="Logger" message="{&quot;message&quot;: &quot;Sorry invalid resposne from service!!&quot;}"/>
+            </otherwise>
+        </choice>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+payload
+]]></dw:set-payload>
+        </dw:transform-message>
+        <json:json-to-object-transformer returnClass="java.lang.Object" doc:name="JSON to Object"/>
+        <set-variable variableName="countStatus" value="#[($ in message.payload if $.containsKey('Status')).size()]" doc:name="Variable"/>
+        <logger level="INFO" doc:name="Logger" message="Final log :  #[payload]"/>
+        <choice doc:name="Choice">
+            <when expression="#[flowVars.countStatus == 2]">
+                <set-payload value="This is Success message !!" doc:name="Set Payload"/>
+            </when>
+            <otherwise>
+                <logger message="This is Failure message !!" level="INFO" doc:name="Logger"/>
+            </otherwise>
+        </choice>
+    </flow>
+    <sub-flow name="consumesampleprojectsSub_Flow">
+        <scatter-gather doc:name="Scatter-Gather">
+            <flow-ref name="CallingSampleFlow1" doc:name="Calling Sample 1"/>
+            <flow-ref name="CallingSampleFlow2" doc:name="Calling Sample 2"/>
+        </scatter-gather>
+    </sub-flow>
+    <flow name="CallingSampleFlow1">
+        <http:request config-ref="HTTP_sampleproject1" path="/sampleproject1" method="GET" doc:name="Calling Sample 1"/>
+        <choice-exception-strategy doc:name="Choice Exception Strategy">
+            <catch-exception-strategy doc:name="Catch Exception Strategy">
+                <logger message="Log 1 :  #[payload]" level="INFO" doc:name="Logger"/>
+            </catch-exception-strategy>
+        </choice-exception-strategy>
+    </flow>
+    <flow name="CallingSampleFlow2">
+        <http:request config-ref="HTTP_sampleproject2" path="/sampleproject2" method="GET" doc:name="Calling Sample 1"/>
+        <choice-exception-strategy doc:name="Choice Exception Strategy">
+            <catch-exception-strategy doc:name="Catch Exception Strategy">
+                <logger message="Log 2 : #[payload]" level="INFO" doc:name="Logger"/>
+            </catch-exception-strategy>
+        </choice-exception-strategy>
+    </flow>
+</mule>
